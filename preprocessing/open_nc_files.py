@@ -13,7 +13,7 @@ for fid, file in enumerate(os.listdir(folder_dir)):
     for v in ds.variables:
         print(v, ds.variables[v].shape)
 
-    rain_fall = ds.variables["Rainf_f_tavg"][:].astype(float) # retrieving the rainfall variable
+    #rain_fall = ds.variables["Rainf_f_tavg"][:].astype(float) # retrieving the rainfall variable
     # plt.imsave(f"rain_{fid}.png", rain_fall[0,::-1], cmap='viridis')
 
     break
