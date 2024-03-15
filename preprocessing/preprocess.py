@@ -6,6 +6,7 @@ import pickle
 from tqdm import tqdm
 import geopandas as gpd
 import pandas as pd
+import csv
 
 print("Reading in fire data...")
 gdf = gpd.read_file('dataframe/dataframe.shp')
@@ -150,10 +151,18 @@ for fid, file in tqdm(enumerate(sorted(os.listdir(folder_dir))), total=len(os.li
     # # Filter rows where 'AvgSurfT_tavg' is not equal to -9999.0
     # df_filtered = df[df['AvgSurfT_tavg'] != -9999.0]
     # df_filtered = df[df['AvgSurfT_tavg'] != "-9999.0"]
-    df_filtered = df.loc[(df.AvgSurfT_tavg != -9999.0)]
+    # df_filtered = df.loc[(df.AvgSurfT_tavg != -9999.0)]
     # Now, df is your DataFrame with columns named according to the variable names
     # Save DataFrame to CSV
     file_name = file.split(".")[0]
-    df_filtered.to_csv(f"../dataset/WLDAS_variables/{file_name}.csv", index=False)
+    df.to_csv(f"../dataset/WLDAS_variables/{file_name}.csv", index=False)
     # pickle.dump(data_dict, open(f"../dataset/WLDAS_arrays/{file_name}.pkl", "wb"))
+    with open(f"../dataset/WLDAS_variables/{file_name}.csv", 'r') as csvfile, open(f"../dataset/WLDAS_final/{file_name}.csv", 'w', newline='') as output_file:
+        reader = csv.reader(csvfile)
+        writer = csv.writer(output_file)
+        
+        for row in reader:
+            new_row = [value for value in row if value != '-9999.0']
+            if(len(new_row)==13):
+                writer.writerow(new_row)
 
