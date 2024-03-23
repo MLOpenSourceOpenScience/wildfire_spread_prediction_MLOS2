@@ -1,0 +1,56 @@
+dataset: 
+  data_dir: "../../wildfire_spread_prediction_MLOS2/dataset/WLDAS_arrays"
+  load_dir: "multi_kernel_cnn/dataset1.pt"
+  # load_dir: Null
+  save_dir: "multi_kernel_cnn/dataset1.pt"
+  patch_size: 64
+  step_size: 16
+
+
+train_dataloader:
+  batch_size: 4
+  num_workers: 24
+  shuffle: True
+
+valid_dataloader:
+  batch_size: 4
+  num_workers: 24
+  shuffle: False
+
+test_dataloader:
+  batch_size: 4
+  num_workers: 24
+  shuffle: False
+
+model:
+  in_channels: 9
+  out_channel: 1
+  dropout_rate: 0.3
+  threshold: 0.8
+
+optimizer:
+  lr: 0.0005
+
+trainer:
+  # gpus: 1
+  gpus: 4
+  strategy: "ddp"
+  accelerator: "gpu"
+  max_epochs: 500
+  check_val_every_n_epoch: 1
+
+logger: 
+  save_dir: "multi_kernel_cnn"
+  name: "lightning_logs"
+
+callbacks:
+  model_checkpoint:
+    monitor: "valid_loss"
+    mode: "min"
+    save_top_k: 3
+    save_last: True
+    filename: "{epoch}-{valid_loss:.2f}"
+    dirpath: "multi_kernel_cnn/checkpoints"
+
+
+
