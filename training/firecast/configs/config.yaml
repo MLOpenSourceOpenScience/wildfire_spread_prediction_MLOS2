@@ -1,0 +1,57 @@
+dataset: 
+  data_dir: "../../wildfire_spread_prediction_MLOS2/dataset/WLDAS_arrays"
+  load_dir: "firecast/dataset.pt"
+  # load_dir: Null
+  save_dir: "firecast/dataset.pt"
+  patch_size: 64
+  step_size: 16
+
+
+train_dataloader:
+  batch_size: 4
+  num_workers: 24
+  shuffle: True
+
+valid_dataloader:
+  batch_size: 4
+  num_workers: 24
+  shuffle: False
+
+test_dataloader:
+  batch_size: 4
+  num_workers: 24
+  shuffle: False
+
+model:
+  in_channels: 9
+
+optimizer:
+  lr: 0.0001
+
+trainer:
+  gpus: 1
+  # gpus: 6
+  # strategy: "ddp"
+  accelerator: "gpu"
+  max_epochs: 200
+  check_val_every_n_epoch: 1
+  fast_dev_run: True
+  overfit_batches: 0.01
+
+logger: 
+  save_dir: "firecast"
+  name: "lightning_logs"
+
+callbacks:
+  model_checkpoint:
+    monitor: "valid_loss"
+    mode: "min"
+    save_top_k: 3
+    save_last: True
+    filename: "{epoch}-{valid_loss:.2f}"
+    dirpath: "firecast/checkpoints1"
+
+last_checkpoint: Null
+
+
+
