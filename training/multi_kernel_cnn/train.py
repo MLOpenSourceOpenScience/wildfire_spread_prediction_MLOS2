@@ -4,7 +4,7 @@ import torch.utils.data as du
 from torch.utils.data import random_split
 import lightning as L
 import yaml
-from multi_kernel_cnn.model import FireCast
+from multi_kernel_cnn.model import Multi_Kernel_CNN
 from multi_kernel_cnn.dataset import WildFireData
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch import Trainer
@@ -18,6 +18,8 @@ import torchmetrics as tm
 
 
 def main(yaml_file_dir="configs/config.yaml"):
+
+    torch.manual_seed(42)
 
     #load config file
     cfg = yaml.safe_load(open(yaml_file_dir))
@@ -43,7 +45,7 @@ def main(yaml_file_dir="configs/config.yaml"):
 
     # load model
     print("Loading model...")
-    model = FireCast(cfg["model"], cfg["optimizer"])
+    model = Multi_Kernel_CNN(cfg["model"], cfg["optimizer"])
     print("Finished loading model.")
 
     checkpoint_callback = ModelCheckpoint(**cfg["callbacks"]["model_checkpoint"])
@@ -57,7 +59,8 @@ def main(yaml_file_dir="configs/config.yaml"):
 
 
     print("Training model...")
-    trainer.fit(model, train_loader, valid_loader)
+
+    trainer.fit(model, train_loader, valid_loader, ckpt_path=cfg["last_checkpoint"])
     print("Finished training model.")
 
     print("Testing model...")

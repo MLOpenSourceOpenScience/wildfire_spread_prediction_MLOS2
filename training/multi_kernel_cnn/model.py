@@ -22,7 +22,7 @@ class Block(nn.Module):
         x3 = self.relu(x3)
         return torch.cat([x1, x2, x3], dim=1)
 
-class FireCast(L.LightningModule):
+class Multi_Kernel_CNN(L.LightningModule):
     def __init__(self, firecast_configs, optimizer_configs):
         super().__init__()
         self.save_hyperparameters()
