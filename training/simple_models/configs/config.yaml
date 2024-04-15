@@ -1,0 +1,22 @@
+dataset: 
+  data_dir: "../../wildfire_spread_prediction_MLOS2/dataset/WLDAS_arrays"
+  load_dir: "dataset/dataset.pt"
+  save_dir: "dataset/dataset.pt"
+  patch_size: 64
+  step_size: 16
+
+
+train_dataloader:
+  batch_size: 4
+  num_workers: 24
+  shuffle: True
+
+valid_dataloader:
+  batch_size: 16
+  num_workers: 24
+  shuffle: False
+
+test_dataloader:
+  batch_size: 16
+  num_workers: 24
+  shuffle: False
