@@ -6,7 +6,43 @@ import pickle
 from tqdm import tqdm
 import geopandas as gpd
 import pandas as pd
-import csv
+from sklearn.cluster import DBSCAN
+from scipy.spatial import cKDTree
+
+# Earth's radius in kilometers
+R = 6371.0
+
+# Function to convert degrees to radians
+def deg2rad(degrees):
+    return degrees * np.pi / 180
+
+# Haversine formula
+def haversine(lat1, lon1, lat2, lon2):
+    lat1, lon1, lat2, lon2 = map(deg2rad, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = np.sin(dlat / 2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2)**2
+    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+    return R * c
+
+# Function to filter points close to any centroid
+def filter_points(combined_data, centroids, max_distance_km=20):
+    # Create a KD-tree for fast spatial searching
+    tree = cKDTree(combined_data[:, [2, 3]])  # Adjust indices for lat and lon
+    filtered_indices = set()
+    
+    for centroid in centroids:
+        # Convert centroid location to radians for consistency in haversine function use
+        centroid_lat_rad, centroid_lon_rad = map(deg2rad, centroid)
+        # Query the tree for points within `max_distance_km`
+        for i in range(len(combined_data)):
+            point_lat_rad, point_lon_rad = map(deg2rad, combined_data[i, [2, 3]])
+            distance = haversine(centroid_lat_rad, centroid_lon_rad, point_lat_rad, point_lon_rad)
+            if distance <= max_distance_km:
+                filtered_indices.add(i)
+    
+    # Convert the set to a sorted list and use it to filter the combined_data
+    return combined_data[list(filtered_indices)]
 
 print("Reading in fire data...")
 gdf = gpd.read_file('dataframe/dataframe.shp')
@@ -27,8 +63,8 @@ variables_t = {
 df_columns = ["time", "date", "lat", "lon"] + list(variables_t)
 df = pd.DataFrame(columns=df_columns)
 
-start_date = "WLDAS_NOAHMP001_DA1_20170709"
-end_date = "WLDAS_NOAHMP001_DA1_20170710"
+start_date = "WLDAS_NOAHMP001_DA1_20170717"
+end_date = "WLDAS_NOAHMP001_DA1_20170718"
 folder_dir = "../dataset/WLDAS"
 for fid, file in tqdm(enumerate(sorted(os.listdir(folder_dir))), total=len(os.listdir(folder_dir))):
 
@@ -83,21 +119,6 @@ for fid, file in tqdm(enumerate(sorted(os.listdir(folder_dir))), total=len(os.li
     filtered_lat = lat[mask_lat]
     filtered_lon = lon[mask_lon]
 
-    # # Create a DataFrame with lat and lon
-    # df_lat_lon = pd.DataFrame({"lat": filtered_lat, "lon": filtered_lon})
-
-    # # Convert 'lat' column to the same data type in both DataFrames
-    # df["lat"] = df["lat"].astype(float)
-    # df_lat_lon["lat"] = df_lat_lon["lat"].astype(float)
-
-    # # Convert 'lon' column to the same data type in both DataFrames
-    # df["lon"] = df["lon"].astype(float)
-    # df_lat_lon["lon"] = df_lat_lon["lon"].astype(float)
-
-    # # Merge the DataFrames on 'lat' and 'lon'
-    # # df = pd.merge(df, df_lat_lon, on=["lat", "lon"])
-    # df = df_lat_lon
-
     fires = gdf[gdf["ACQ_DATE"].str.contains(date, na=False)]
 
     fire_array = np.zeros((len(lat), len(lon)), dtype=np.uint8)
@@ -115,25 +136,41 @@ for fid, file in tqdm(enumerate(sorted(os.listdir(folder_dir))), total=len(os.li
     fire_array = fire_array.reshape(1, data_array.shape[1], data_array.shape[2])
     combined_data = np.concatenate((time, date, lat, lon, data_array, fire_array), axis=0)
     combined_data = combined_data.reshape(combined_data.shape[0], -1)
+    print(combined_data.shape) 
+    fire_points = combined_data[combined_data[:,-1]==1]
+    fire_points = fire_points.reshape(-1, combined_data.shape[1])
     
-    # plt.imsave(f"../dataset/Detwiler_Fire/{date}.png", fire_array)
+    # Clustering fire points
+    fire_lat_lon = fire_points[:, 2:4]  # Adjust these indices based on your data
+    dbscan = DBSCAN(eps=0.05, min_samples=10, metric=lambda u, v: haversine(u[0], u[1], v[0], v[1]))
+    clusters = dbscan.fit_predict(fire_lat_lon)
+    # Calculate centroids of clusters
+    centroids = []
+    for cluster_id in np.unique(clusters):
+        if cluster_id != -1:
+            index = clusters == cluster_id
+            centroid_lat = np.mean(fire_lat_lon[index, 0])
+            centroid_lon = np.mean(fire_lat_lon[index, 1])
+            centroids.append((centroid_lat, centroid_lon))
+    
+    
+    # Create a mask for points within 20 km from any centroid
+    proximity_mask = np.zeros(len(combined_data), dtype=int)
 
-    # data_dict = {
-    #     "time": time,
-    #     "date": date,
-    #     "lat": lat,
-    #     "lon": lon,
-    #     "data": data_array,
-    #     "fire": fire_array
-    # }
-    
-    
-    # for i in range(data_array.shape[0]):
-    #     for j in range(data_array.shape[1]):
-    #         pixel = data_array[i,j]
-    #         pixel_lat = len(lat) - lat[i]
-    #         pixel_lon = lon[j]
-    #         has_fire = fire_array[i,j].bool()
+    for centroid in centroids:
+        # Each centroid processed
+        centroid_lat, centroid_lon = centroid
+        for i, point in enumerate(combined_data):
+            point_lat, point_lon = point[2], point[3]  # Adjust indices if necessary
+            if haversine(centroid_lat, centroid_lon, point_lat, point_lon) <= 20:
+                proximity_mask[i] = 1
+
+    # Add the mask as a new column to combined_data
+    combined_data_with_mask = np.hstack((combined_data, proximity_mask[:, None]))
+
+    print(combined_data_with_mask.shape)  # This will show the original number of rows and one additional column
+
+
 
     '''
         Convert the array called combined_data to DataFrame here!!! 
@@ -151,18 +188,11 @@ for fid, file in tqdm(enumerate(sorted(os.listdir(folder_dir))), total=len(os.li
     # # Filter rows where 'AvgSurfT_tavg' is not equal to -9999.0
     # df_filtered = df[df['AvgSurfT_tavg'] != -9999.0]
     # df_filtered = df[df['AvgSurfT_tavg'] != "-9999.0"]
-    # df_filtered = df.loc[(df.AvgSurfT_tavg != -9999.0)]
+    df['AvgSurfT_tavg'] = pd.to_numeric(df['AvgSurfT_tavg'], errors='coerce')
+    df_filtered = df.loc[(df.AvgSurfT_tavg != -9999.0)]
     # Now, df is your DataFrame with columns named according to the variable names
     # Save DataFrame to CSV
     file_name = file.split(".")[0]
-    df.to_csv(f"../dataset/WLDAS_variables/{file_name}.csv", index=False)
+    df_filtered.to_csv(f"../dataset/WLDAS_variables/{file_name}.csv", index=False)
     # pickle.dump(data_dict, open(f"../dataset/WLDAS_arrays/{file_name}.pkl", "wb"))
-    with open(f"../dataset/WLDAS_variables/{file_name}.csv", 'r') as csvfile, open(f"../dataset/WLDAS_final/{file_name}.csv", 'w', newline='') as output_file:
-        reader = csv.reader(csvfile)
-        writer = csv.writer(output_file)
-        
-        for row in reader:
-            new_row = [value for value in row if value != '-9999.0']
-            if(len(new_row)==13):
-                writer.writerow(new_row)
 
